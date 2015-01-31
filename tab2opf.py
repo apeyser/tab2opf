@@ -518,10 +518,10 @@ def readkey(r, defs):
         defn = normalizeUnicode(defn,'cp1252')
 
     term = term.strip()
-    key = normalizeUnicode(term).replace('"', "'").lower().strip()
+    nkey = normalizeUnicode(term).replace('"', "'").lower().strip()
     defn = defn.replace("\\\\","\\").replace("\\n","<br/>\n")
 
-    key = getkey(key).strip()
+    key = getkey(nkey).strip()
     if key == '':
         raise Exception("Missing key {}".format(term))
     defn = getdef(defn).strip()
@@ -530,7 +530,7 @@ def readkey(r, defs):
     
     if VERBOSE: print key, ":", term
 
-    ndef = [term, defn]
+    ndef = [term, defn, nkey]
     if key not in defs:
         defs[key] = [ndef]
     else:
@@ -572,10 +572,15 @@ def writekeyfile(name, i):
 
 # key -> terms, defns
 def writekey(to, key, defn):
-    terms = iter(sorted(defn, key=itemgetter(0)))
-    bterm, bdefn = next(terms)
+    def keyf(defn):
+        term = defn[0]
+        if key == defn[2]: return [0, term]
+        return [len(term), term]
+
+    terms = iter(sorted(defn, key=keyf))
+    bterm, bdefn, _ = next(terms)
     
-    for nterm, ndefn in terms:
+    for nterm, ndefn, _ in terms:
         bdefn += "; "
         if nterm != bterm:
             bdefn += "{}: ".format(nterm)

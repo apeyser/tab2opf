@@ -40,8 +40,8 @@ VERSION = "0.1"
 # FILENAME is a first parameter on the commandline now
 
 import sys
-import re
 import os
+import argparse
 
 from unicodedata import normalize, decomposition, combining
 import string
@@ -187,15 +187,7 @@ OPFTEMPLATEEND = """</spine>
 # MAIN
 ################################################################
 
-UTFINDEX = False
-if len(sys.argv) > 1:
-    FILENAME = sys.argv[1]
-    if sys.argv[1] == '-utf':
-        UTFINDEX = True
-        FILENAME = sys.argv[2]
-    else:
-        FILENAME = sys.argv[1]
-else:
+if len(sys.argv) < 1:
     print "tab2opf (Stardict->MobiPocket)"
     print "------------------------------"
     print "Version: %s" % VERSION
@@ -206,11 +198,38 @@ else:
     print "ERROR: You have to specify a .tab file"
     sys.exit(1)
 
+parser = argparse.ArgumentParser("tab2opf")
+parser.add_argument("-v", "--verbose", help="make verbose", 
+                    action="store_true")
+parser.add_argument("-u", "--utf", help="input is utf8", 
+                    action="store_true")
+parser.add_argument("file", help="tab file to input")
+parser.add_argument("-n", "--no-getkey", help="Don't import getkey",
+                    action="store_true")
+args = parser.parse_args()
+
+UTFINDEX = args.utf
+VERBOSE = args.verbose
+FILENAME = args.file
+GETKEY = not args.no_getkey
+
+if GETKEY:
+    try: import getkey
+    except ImportError:
+        print "No getkey.py found"
+        GETKEY = False
+    else:
+        print "Loading getkey from: {}".format(getkey.__file__)
+        from getkey import getkey
+
+if not GETKEY:
+    def getkey(key): return key
+
 fr = open(FILENAME,'rb')
 name = os.path.splitext(os.path.basename(FILENAME))[0]
 
 i = 0
-to = False
+to = None
 
 for r in fr.xreadlines():
    
@@ -242,6 +261,7 @@ for r in fr.xreadlines():
         dt = normalizeUnicode(dt,'cp1252')
         dd = normalizeUnicode(dd,'cp1252')
     dtstrip = normalizeUnicode( dt ).replace('"', "'")
+    dtstrip = getkey(dtstrip)
     dd = dd.replace("\\\\","\\").replace("\\n","<br/>\n")
     to.write("""      <idx:entry name="word" scriptable="yes">
         <h2>
@@ -251,7 +271,7 @@ for r in fr.xreadlines():
       </idx:entry>
       <mbp:pagebreak/>
 """ % (dt, dtstrip, dd))
-    print dt
+    if VERBOSE: print dt
     i += 1
 
 to.write("""

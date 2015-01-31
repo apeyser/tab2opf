@@ -42,7 +42,7 @@ VERSION = "0.2"
 import sys
 import os
 import argparse
-from itertools import islice, count
+from itertools import islice, count, ifilter
 from contextlib import contextmanager
 from operator import itemgetter
 import importlib
@@ -339,9 +339,9 @@ mapping.update(mapping_punct)
 whitespace = ''.join([c for c in string.whitespace if ord(c) < 128])
 allowed = string.ascii_letters + string.digits + string.punctuation + whitespace
 
-def normalizeLetter(ch, encoding, enc):
+def normalizeLetter(ch, ishuman, enc):
     global allowed
-    if (encoding == 'humanascii') and (ch in allowed):
+    if ishuman and (ch in allowed):
         # ASCII chars, digits etc. stay untouched
         return ch
 
@@ -370,18 +370,19 @@ def normalizeUnicode(text, encoding='humanascii'):
     letters. Output is ASCII encoded string (or char) with only ASCII letters,
     digits, punctuation and whitespace characters. Case is preserved.
     """
+    ishuman = encoding == 'humanascii'
     if isinstance(text, unicode):
         unicodeinput = True
     else:
         unicodeinput = False
         text = unicode(text, 'utf-8')
 
-    if encoding == 'humanascii': enc = 'ascii'
+    if ishuman: enc = 'ascii'
     else: enc = encoding
 
     res = ''
     for ch in text:
-        res += normalizeLetter(ch, encoding, enc)
+        res += normalizeLetter(ch, ishuman, enc)
 
     if not unicodeinput: res = res.encode('utf-8')
     return res
@@ -404,8 +405,8 @@ OPFTEMPLATEHEAD1 = """<?xml version="1.0"?><!DOCTYPE package SYSTEM "oeb1.ent">
 """
 OPFTEMPLATEHEADNOUTF = """		<output encoding="Windows-1252" flatten-dynamic-dir="yes"/>"""
 OPFTEMPLATEHEAD2 = """
-		<DictionaryInLanguage>en-us</DictionaryInLanguage>
-		<DictionaryOutLanguage>en-us</DictionaryOutLanguage>
+		<DictionaryInLanguage>%s</DictionaryInLanguage>
+		<DictionaryOutLanguage>%s</DictionaryOutLanguage>
 	</x-metadata>
 </metadata>
 
@@ -455,7 +456,10 @@ def parseargs():
     parser.add_argument("-u", "--utf", help="input is utf8", 
                         action="store_true")
     parser.add_argument("-g", "--getkey", help="Import getkey")
+    parser.add_argument("-d", "--getdef", help="Import getdef")
     parser.add_argument("-m", "--mapping", help="Import added mapping")
+    parser.add_argument("-s", "--source", default="en", help="Source language")
+    parser.add_argument("-t", "--target", default="en", help="Target language")
     parser.add_argument("file", help="tab file to input")    
     return parser.parse_args()
 
@@ -471,6 +475,17 @@ def importgetkey():
     print "Loading getkey from: {}".format(mod.__file__)
     getkey = mod.getkey
 
+def importgetdef():
+    global GETDEF
+    global getdef
+
+    if GETDEF is None:
+        def getdef(dfn): return dfn
+        return
+
+    mod = importlib.import_module(GETDEF)
+    print "Loading getdef from: {}".format(mod.__file__)
+    getdef = mod.getdef
 
 def importmapping():
     global MAPPING
@@ -488,8 +503,12 @@ UTFINDEX = args.utf
 VERBOSE = args.verbose
 FILENAME = args.file
 GETKEY = args.getkey
+GETDEF = args.getdef
 MAPPING = args.mapping
+INLANG = args.source
+OUTLANG = args.target
 importgetkey()
+importgetdef()
 importmapping()
 
 def readkey(r, defs):
@@ -497,9 +516,19 @@ def readkey(r, defs):
     if not UTFINDEX:
         term = normalizeUnicode(term,'cp1252')
         defn = normalizeUnicode(defn,'cp1252')
-    key = getkey(normalizeUnicode(term).replace('"', "'"))
+
+    term = term.strip()
+    key = normalizeUnicode(term).replace('"', "'").lower().strip()
     defn = defn.replace("\\\\","\\").replace("\\n","<br/>\n")
-    if VERBOSE: print term, ":", key
+
+    key = getkey(key).strip()
+    if key == '':
+        raise Exception("Missing key {}".format(term))
+    defn = getdef(defn).strip()
+    if defn == '':
+        raise Exception("Missing definition {}".format(term))
+    
+    if VERBOSE: print key, ":", term
 
     ndef = [term, defn]
     if key not in defs:
@@ -508,15 +537,19 @@ def readkey(r, defs):
         defs[key].append(ndef)
 
 def readkeys():
+    if VERBOSE: print "Reading {}".format(FILENAME)
     with open(FILENAME,'rb') as fr:
         defns = {}
-        for r in fr.xreadlines():
+        for r in ifilter(lambda l: len(l.strip()) != 0, 
+                         fr.xreadlines()):
             readkey(r, defns)
         return defns
 
 @contextmanager
 def writekeyfile(name, i):
-    with open("%s%d.html" % (name, i), 'w') as to:
+    fname = "%s%d.html" % (name, i)
+    if VERBOSE: print "Key file: {}".format(fname)
+    with open(fname, 'w') as to:
         to.write("""<?xml version="1.0" encoding="utf-8"?>
 <html xmlns:idx="www.mobipocket.com" xmlns:mbp="www.mobipocket.com" xmlns:xlink="http://www.w3.org/1999/xlink">
   <body>
@@ -556,6 +589,8 @@ def writekey(to, key, defn):
       </idx:entry>
       <mbp:pagebreak/>
 """ % (bterm, key, bdefn))
+    
+    if VERBOSE: print key
 
 def writekeys(defns, name):
     keyit = iter(sorted(defns))
@@ -568,11 +603,13 @@ def writekeys(defns, name):
     return j+1
 
 def writeopf(ndicts, name):
-    with open("%s.opf" % name, 'w') as to:
+    fname = "%s.opf" % name
+    if VERBOSE: print "Opf: {}".format(fname)
+    with open(fname, 'w') as to:
         to.write(OPFTEMPLATEHEAD1 % (name, name))
         if not UTFINDEX: to.write(OPFTEMPLATEHEADNOUTF)
 
-        to.write(OPFTEMPLATEHEAD2)
+        to.write(OPFTEMPLATEHEAD2 % (INLANG, OUTLANG))
         for i in range(ndicts):
             to.write(OPFTEMPLATELINE % (i, name, i))
 
@@ -582,7 +619,10 @@ def writeopf(ndicts, name):
         to.write(OPFTEMPLATEEND)
 
 
+print "Reading keys"
 defns = readkeys()
 name = os.path.splitext(os.path.basename(FILENAME))[0]
+print "Writing keys"
 ndicts = writekeys(defns, name)
+print "Writing opf"
 writeopf(ndicts, name)

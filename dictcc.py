@@ -1,17 +1,46 @@
 import re
 
-p = re.compile(r"\s*(?:(?:jd\.|jdn\.|jdm\.|etw\.|\\|/)\s*)*")
-g = re.compile(r"\s*(?:{[^\}]+}|\[[^\]]*\])")
-s = re.compile(r"^\s*(\([^\)]+\))\s*(.*)")
+# put the word at the front for the keys
+preps = r"\b(?:mit|an|fur|uber|als|in|zu|von|auf|bis|durch|gegen|ohne|um|aus|auser|bei|gegenuber|nach|seit|entlang|hinter|neben|unter|vor|zwischen|(?:an)?statt|trotz|wahrend|wegen|auserhalb|innerhalb|oberhalb|unterhalb|diesseits|jenseits|beiderseits)\b"
+objs = r"\b(?:(?:sich|etwas|jede[rnms]?)\b|etw\.|jd[rnms]?\.)"
+p = re.compile(r"^(?:\s*(?:{preps}\s+)?{objs})+". \
+               format(preps=preps, objs=objs))
 
-def getkey(okey):
-    key = p.sub("", okey)
-    key = g.sub("", key)
-    m = s.match(key)
-    if m:
-        paren, head = m.group(1, 2)
-        key = "{} {}".format(head, paren)
+# puncts
+puncts = re.compile(r"[,%'\"\\/]")
+per = re.compile(r"(?:\.\.+|\s\.\s)")
 
-    if len(key) == 0:
-        print "Missing key {}".format(okey)
-    return key
+# remove {gender}, [type], (objects)
+extras = r"(?:{[^\}]+}|\[[^\]]*\]|\([^\)]+\))"
+e = re.compile(r"\s*{extras}".format(extras=extras))
+
+# remove articles
+articles = r"\b(?:(?:d(?:er|as|ie|en|em|es)|ein(?:e|er|en|em|es))\b)"
+g = re.compile(r"{articles}".format(articles=articles))
+
+sp = re.compile(r"\s+")
+
+strippers = [
+    [puncts, " "],
+    [per, " "],
+    [e, ''], 
+    [g, ''], 
+    [p, '']
+]
+
+def getkey(key):
+    for s, r in strippers:
+        nkey = s.sub(r, key).strip()
+        if len(nkey) == 0: break
+        key = nkey
+
+    key = key.lstrip().split(None, 1)[0]
+    return sp.sub(" ", key)
+
+d = re.compile(r"\s*\t\s*")
+
+def getdef(odef):
+    dfn, ops = d.split(odef, 1)
+    if ops.strip() != '':
+        dfn = "({}) {}".format(ops.strip(), dfn)
+    return dfn

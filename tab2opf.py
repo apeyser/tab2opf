@@ -518,8 +518,15 @@ def readkey(r, defs):
         defn = normalizeUnicode(defn,'cp1252')
 
     term = term.strip()
-    nkey = normalizeUnicode(term).replace('"', "'").lower().strip()
-    defn = defn.replace("\\\\","\\").replace("\\n","<br/>\n")
+    nkey = normalizeUnicode(term).\
+        replace('"', "'").\
+        replace('<', '\\<').\
+        replace('>', '\\>').\
+        lower().strip()
+    defn = defn.replace("\\\\","\\").\
+        replace(">", "\\>").\
+        replace("<", "\\<").\
+        replace("\\n","<br/>\n")
 
     key = getkey(nkey).strip()
     if key == '':

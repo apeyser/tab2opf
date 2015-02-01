@@ -518,26 +518,28 @@ def readkey(r, defs):
         defn = normalizeUnicode(defn,'cp1252')
 
     term = term.strip()
-    nkey = normalizeUnicode(term).\
+    defn = getdef(defn)
+    defn = defn.replace("\\\\","\\").\
+        replace(">", "\\>").\
+        replace("<", "\\<").\
+        replace("\\n","<br/>\n").\
+        strip()
+
+    key = getkey(normalizeUnicode(term))
+    key = key.\
         replace('"', "'").\
         replace('<', '\\<').\
         replace('>', '\\>').\
         lower().strip()
-    defn = defn.replace("\\\\","\\").\
-        replace(">", "\\>").\
-        replace("<", "\\<").\
-        replace("\\n","<br/>\n")
 
-    key = getkey(nkey).strip()
     if key == '':
         raise Exception("Missing key {}".format(term))
-    defn = getdef(defn).strip()
     if defn == '':
         raise Exception("Missing definition {}".format(term))
     
     if VERBOSE: print key, ":", term
 
-    ndef = [term, defn, nkey]
+    ndef = [term, defn, key]
     if key not in defs:
         defs[key] = [ndef]
     else:
@@ -595,12 +597,13 @@ def writekey(to, key, defn):
 
     to.write("""      <idx:entry name="word" scriptable="yes">
         <h2>
-          <idx:orth>%s</idx:orth><idx:key key="%s">
+          <idx:orth value="{key}">{term}</idx:orth><idx:key key="%s">
         </h2>
-        %s
+        {dfn}
       </idx:entry>
       <mbp:pagebreak/>
-""" % (bterm, key, bdefn))
+""".\
+            format(term=bterm, key=key, dfn=bdefn))
     
     if VERBOSE: print key
 

@@ -9,7 +9,7 @@ p = re.compile(r"^(?:\s*(?:{objs}|{preps}\s+{word}))+". \
 pr = re.compile(preps)
 
 # puncts
-puncts = re.compile(r"[,%'\"\\/]")
+puncts = re.compile(r"[<>,%'\"\\/]")
 per = re.compile(r"(?:\.\.+|\s\.\s)")
 aper = re.compile(r"\.+")
 

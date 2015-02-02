@@ -142,9 +142,11 @@ def parseargs():
     parser.add_argument("file", help="tab file to input")    
     return parser.parse_args()
 
-def loadmember(mod, attr):
-    print("Loading {} from {}".format(attr, mod.__name__))
-    return getattr(mod, attr)
+def loadmember(mod, attr, dfault):
+    if hasattr(mod, attr):
+        print("Loading {} from {}".format(attr, mod.__name__))
+        return getattr(mod, attr)
+    return dfault
 
 def importmod():
     global MODULE
@@ -157,20 +159,9 @@ def importmod():
         mod = importlib.import_module(MODULE)
         print("Loading methods from: {}".format(mod.__file__))
 
-    if hasattr(mod, 'getkey'):
-        getkey = loadmember(mod, 'getkey')
-    else:
-        def getkey(key): return key
-
-    if hasattr(mod, 'getdef'):
-        getdef = loadmember(mod, 'getdef')
-    else:
-        def getdef(dfn): return dfn
- 
-    if hasattr(mod, 'mapping'):
-        mapping = loadmember(mod, 'mapping')
-    else:
-        mapping = {}
+    getkey = loadmember(mod, 'getkey', lambda key: key)
+    getdef = loadmember(mod, 'getdef', lambda dfn: dfn)
+    mapping = loadmember(mod, 'mapping', {})
 
 args = parseargs()
 UTFINDEX = args.utf

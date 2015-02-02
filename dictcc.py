@@ -3,52 +3,44 @@ import re
 # put the word at the front for the keys
 preps = r"\b(?:mit|an|furs?|ubers?|als|i(?:ns?|m)?|zu[rm]?|vo[nm]|aufs?|bis|durch|gegen|ohne|um|aus|auser|beim?|gegenuber|nach|seit|entlang|hinter|neben|unter|vorm?|zwischen|(?:an)?statt|trotz|wahrend|wegen|auserhalb|innerhalb|oberhalb|unterhalb|diesseits|jenseits|beiderseits)\b"
 word = r"[\w\.]+"
-objs = r"\b(?:(?:selbst|sich|etwas|jede[rnms]?)\b|etw\.|jd[rnms]?\.)"
-p = re.compile(r"^(?:\s*(?:{objs}|{preps}\s+{word}))+". \
-               format(preps=preps, word=word, objs=objs))
-pr = re.compile(preps)
+objs = r"\b(?:selbst|sich|etwas|jede[rnms]|etw|jd[rnms]?)\b"
 
-# puncts
-puncts = re.compile(r"[<>,%'\"\\/]")
-per = re.compile(r"(?:\.\.+|\s\.\s)")
-aper = re.compile(r"\.+")
+p = re.compile(r"\b(?:{objs}|{preps}\s+{word})\b". \
+               format(preps=preps, word=word, objs=objs),
+               re.UNICODE)
+pr = re.compile(preps, re.UNICODE)
 
 # remove {gender}, [type], (objects)
 extras = r"(?:{[^\}]+}|\[[^\]]*\]|\([^\)]+\))"
-e = re.compile(r"\s*{extras}".format(extras=extras))
+e = re.compile(extras, re.UNICODE)
 
 # remove articles
-articles = r"\b(?:(?:d(?:er|as|ie|en|em|es)|k?ein(?:e|er|en|em|es))\b)"
-g = re.compile(r"{articles}".format(articles=articles))
+articles = r"\b(?:d(?:e[rnms]|as|ie)|k?ein(?:e[rnms]?)?)\b"
+g = re.compile(articles, re.UNICODE)
 
-sp = re.compile(r"\s+")
+sp = re.compile(r"[^\w-]+", re.UNICODE)
 
 strippers = [
     [
-        [[puncts], " "],
-        [[per], " "],
-        [[e], ''],
-        [[g], ''],
-        [[p], '']
-    ],
-    [
-        [[aper], ''],
-        [[pr], '']
+        [e, ''],   # delete parenthized
+        [sp, ' '], # non letters -> space
+        [g, ''],   # delete articles
+        [p, ''],   # delete prep + objects
+    ], [
+        [pr, ''],  # delete any preps left
     ]
 ]
 
 def getkey(key):
-    for sstr in strippers:
-        for s, r in sstr:
-            nkey = key
-            for s_ in s:
-                nkey = s_.sub(r, nkey).strip()
-
+    for sstrippers in strippers:
+        nkey = key
+        for s, r in sstrippers:
+            nkey = s.sub(r, nkey).strip()
             if len(nkey) == 0: break
             key = nkey
-
-    key = key.lstrip().split(None, 1)[0]
-    return sp.sub(" ", key)
+ 
+    return max(key.split(),
+               key=lambda k: len(k))
 
 d = re.compile(r"\s*\t\s*")
 

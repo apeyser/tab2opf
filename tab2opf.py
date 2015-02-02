@@ -42,7 +42,7 @@ VERSION = "0.2"
 import sys
 import os
 import argparse
-from itertools import islice, count, ifilter
+from itertools import islice, count, ifilter, groupby
 from contextlib import contextmanager
 from operator import itemgetter
 import importlib
@@ -147,7 +147,7 @@ mapping_win = {
     0xDC: 'U', #LATIN CAPITAL LETTER U WITH DIAERESIS
     0xDD: 'Y', #LATIN CAPITAL LETTER Y WITH ACUTE
     0xDE: 'TH', #LATIN CAPITAL LETTER THORN
-    0xDF: 's', #LATIN SMALL LETTER SHARP S
+    0xDF: u'ß', #LATIN SMALL LETTER SHARP S: leave along
     0xE0: 'a', #LATIN SMALL LETTER A WITH GRAVE
     0xE1: 'a', #LATIN SMALL LETTER A WITH ACUTE
     0xE2: 'a', #LATIN SMALL LETTER A WITH CIRCUMFLEX
@@ -380,10 +380,11 @@ def normalizeUnicode(text, encoding='humanascii'):
     if ishuman: enc = 'ascii'
     else: enc = encoding
 
-    res = ''
+    res = unicode('', 'utf-8')
     for ch in text:
         res += normalizeLetter(ch, ishuman, enc)
-
+        
+    print "XXX: ", res
     if not unicodeinput: res = res.encode('utf-8')
     return res
 
@@ -455,61 +456,49 @@ def parseargs():
                         action="store_true")
     parser.add_argument("-u", "--utf", help="input is utf8", 
                         action="store_true")
-    parser.add_argument("-g", "--getkey", help="Import getkey")
-    parser.add_argument("-d", "--getdef", help="Import getdef")
-    parser.add_argument("-m", "--mapping", help="Import added mapping")
+    parser.add_argument("-m", "--module", 
+                        help="Import mod for mapping, getkey, getdef")
     parser.add_argument("-s", "--source", default="en", help="Source language")
     parser.add_argument("-t", "--target", default="en", help="Target language")
     parser.add_argument("file", help="tab file to input")    
     return parser.parse_args()
 
-def importgetkey():
-    global GETKEY
+def loadmember(mod, attr):
+    print "Loading {} from {}".format(attr, mod.__name__)
+    return getattr(mod, attr)
+
+def importmod():
+    global MODULE
     global getkey
-
-    if GETKEY is None:
-        def getkey(key): return key
-        return
-
-    mod = importlib.import_module(GETKEY)
-    print "Loading getkey from: {}".format(mod.__file__)
-    getkey = mod.getkey
-
-def importgetdef():
-    global GETDEF
     global getdef
-
-    if GETDEF is None:
-        def getdef(dfn): return dfn
-        return
-
-    mod = importlib.import_module(GETDEF)
-    print "Loading getdef from: {}".format(mod.__file__)
-    getdef = mod.getdef
-
-def importmapping():
-    global MAPPING
     global mapping
 
-    if MAPPING is None:
-        return
+    if MODULE is None: mod = None
+    else:
+        mod = importlib.import_module(MODULE)
+        print "Loading methods from: {}".format(mod.__file__)
 
-    mod = importlib.import_module(MAPPING)
-    print "Loading mapping from: {}".format(mod.__file__)
-    mapping.update(mod.mapping)
+    if hasattr(mod, 'getkey'):
+        getkey = loadmember(mod, 'getkey')
+    else:
+        def getkey(key): return key
+
+    if hasattr(mod, 'getdef'):
+        getdef = loadmember(mod, 'getdef')
+    else:
+        def getdef(dfn): return dfn
+ 
+    if hasattr(mod, 'mapping'):
+        mapping.update(loadmember(mod, 'mapping'))
 
 args = parseargs()
 UTFINDEX = args.utf
 VERBOSE = args.verbose
 FILENAME = args.file
-GETKEY = args.getkey
-GETDEF = args.getdef
-MAPPING = args.mapping
+MODULE = args.module
 INLANG = args.source
 OUTLANG = args.target
-importgetkey()
-importgetdef()
-importmapping()
+importmod()
 
 def readkey(r, defs):
     term, defn =  r.split('\t',1)
@@ -532,6 +521,13 @@ def readkey(r, defs):
         replace('>', '\\>').\
         lower().strip()
 
+    nkey = normalizeUnicode(term)
+    nkey = nkey.\
+        replace('"', "'").\
+        replace('<', '\\<').\
+        replace('>', '\\>').\
+        lower().strip()
+
     if key == '':
         raise Exception("Missing key {}".format(term))
     if defn == '':
@@ -539,7 +535,7 @@ def readkey(r, defs):
     
     if VERBOSE: print key, ":", term
 
-    ndef = [term, defn, key]
+    ndef = [term, defn, key == nkey]
     if key not in defs:
         defs[key] = [ndef]
     else:
@@ -579,31 +575,30 @@ def writekeyfile(name, i):
 </html>
         """)
 
+def keyf(defn):
+    term = defn[0]
+    if defn[2]: l = 0
+    else: l = len(term)
+    return l, term
+
 # key -> terms, defns
 def writekey(to, key, defn):
-    def keyf(defn):
-        term = defn[0]
-        if key == defn[2]: return [0, term]
-        return [len(term), term]
-
     terms = iter(sorted(defn, key=keyf))
-    bterm, bdefn, _ = next(terms)
-    
-    for nterm, ndefn, _ in terms:
-        bdefn += "; "
-        if nterm != bterm:
-            bdefn += "{}: ".format(nterm)
-        bdefn += ndefn
-
-    to.write("""      <idx:entry name="word" scriptable="yes">
+    for term, g in groupby(terms, key=lambda d: d[0]):
+        to.write(
+"""
+      <idx:entry name="word" scriptable="yes">
         <h2>
-          <idx:orth value="{key}">{term}</idx:orth><idx:key key="%s">
+          <idx:orth value="{key}">{term}</idx:orth>
         </h2>
-        {dfn}
+""".format(term=term, key=key))
+
+        to.write('; '.join(ndefn for _, ndefn, _ in g))
+        to.write(
+"""
       </idx:entry>
-      <mbp:pagebreak/>
-""".\
-            format(term=bterm, key=key, dfn=bdefn))
+"""
+)
     
     if VERBOSE: print key
 

@@ -8,17 +8,17 @@ objs = r"\b(?:selbst|sich|etwas|jede[rnms]|etw|jd[rnms]?)\b"
 p = re.compile(r"\b(?:{objs}|{preps}\s+{word})\b". \
                format(preps=preps, word=word, objs=objs),
                re.UNICODE)
-pr = re.compile(preps, re.UNICODE)
+pr = re.compile(preps)
 
 # remove {gender}, [type], (objects)
 extras = r"(?:{[^\}]+}|\[[^\]]*\]|\([^\)]+\))"
-e = re.compile(extras, re.UNICODE)
+e = re.compile(extras)
 
 # remove articles
 articles = r"\b(?:d(?:e[rnms]|as|ie)|k?ein(?:e[rnms]?)?)\b"
-g = re.compile(articles, re.UNICODE)
+g = re.compile(articles)
 
-sp = re.compile(r"[^\w-]+", re.UNICODE)
+sp = re.compile(r"[^\w-]+")
 
 strippers = [
     [

@@ -49,14 +49,11 @@ from contextlib import contextmanager
 from operator import itemgetter
 import importlib
 
-from unicodedata import normalize
 import string
 
 # Feel free to add new user-defined mapping. Don't forget to update mapping dict
 # with your dict.
 
-# char -> char
-mapping = {}
 # Stop with the encoding -- it's broken anyhow
 # in the kindles and undefined.
 def normalizeLetter(ch):
@@ -66,7 +63,7 @@ def normalizeLetter(ch):
 
 def normalizeUnicode(text):
     """
-    Reduce some characters to ascii
+    Reduce some characters to something else
     """
     return ''.join(normalizeLetter(c) for c in text)
 
@@ -172,6 +169,8 @@ def importmod():
  
     if hasattr(mod, 'mapping'):
         mapping = loadmember(mod, 'mapping')
+    else:
+        mapping = {}
 
 args = parseargs()
 UTFINDEX = args.utf
@@ -183,7 +182,6 @@ OUTLANG = args.target
 importmod()
 
 def readkey(r, defs):
-    r = normalize('NFC', r)
     term, defn =  r.split('\t',1)
 
     term = term.strip()

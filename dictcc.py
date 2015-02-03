@@ -22,35 +22,34 @@ spw = re.compile(r"[^\w\(\)\{\}\[\]]+")
 sp = re.compile(r"\W+")
 ssp = re.compile(r"\s+")
 
-# We'll walk the strippers
-# For each element, we'll go over all the sub-elements
-# The sub-elements are regex, replacement pairs
-# If one of these reduces the key to nothing,
-# then reject it, and skip all following pairs
-# until the next group
-#
-strippers = [
-    [
-        [spw, ' '],  # non letters -> space
-        [e, ' '],   # delete parenthesized
-        [g, ' '],   # delete articles
-        [p, ' '],   # delete prep + objects
-    ], [
-        [sp, ' '],  # non letters -> space
-        [pr, ' '],  # delete any preps left
-    ], [
-        [ssp, ' '], # collapse spaces
-    ]
-]
+class Reject(Exception): pass
+
+def tryreg(key, reg):
+    nkey = reg.sub(' ', key).strip()
+    if len(nkey) == 0: raise Reject()
+    return nkey
+
+def denoise(key):
+    try: 
+        key = tryreg(key, spw) # non letters/parens -> space
+        key = tryreg(key, e)   # delete parenthesized
+        key = tryreg(key, g)   # delete articles
+        key = tryreg(key, p)   # delete prep + objects
+    except Reject: pass
+
+    try:
+        key = tryreg(key, sp) # non letters -> space
+        key = tryreg(key, pr) # delete any preps left
+    except Reject: pass
+
+    try:
+        key = tryreg(key, ssp) # collapse spaces
+    except Reject: pass
+
+    return key
 
 def getkey(key):
-    for sstrippers in strippers:
-        nkey = key
-        for s, r in sstrippers:
-            nkey = s.sub(r, nkey).strip()
-            if len(nkey) == 0: break
-            key = nkey
-
+    key = denoise(key)
     # return the biggest word in the term
     return max(key.split(),
                key=lambda k: len(k))

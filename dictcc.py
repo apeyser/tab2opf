@@ -18,6 +18,7 @@ articles = r"(?:^|\s)(?:d(?:e[rnms]|as|ie)|k?ein(?:e[rnms]?)?)(?:\s|$)"
 g = re.compile(articles)
 
 # Not a word
+spw = re.compile(r"[^\w\(\)\{\}\[\]]+")
 sp = re.compile(r"\W+")
 ssp = re.compile(r"\s+")
 
@@ -30,13 +31,12 @@ ssp = re.compile(r"\s+")
 #
 strippers = [
     [
+        [spw, ' '],  # non letters -> space
         [e, ' '],   # delete parenthesized
-    ],
-    [
-        [sp, ' '],  # non letters -> space
         [g, ' '],   # delete articles
         [p, ' '],   # delete prep + objects
     ], [
+        [sp, ' '],  # non letters -> space
         [pr, ' '],  # delete any preps left
     ], [
         [ssp, ' '], # collapse spaces

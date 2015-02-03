@@ -61,53 +61,6 @@ def normalizeUnicode(text):
     """
     return ''.join(normalizeLetter(c) for c in text)
 
-OPFTEMPLATEHEAD1 = """<?xml version="1.0"?><!DOCTYPE package SYSTEM "oeb1.ent">
-
-<!-- the command line instruction 'prcgen dictionary.opf' will produce the dictionary.prc file in the same folder-->
-<!-- the command line instruction 'mobigen dictionary.opf' will produce the dictionary.mobi file in the same folder-->
-
-<package unique-identifier="uid" xmlns:dc="Dublin Core">
-
-<metadata>
-	<dc-metadata>
-		<dc:Identifier id="uid">%s</dc:Identifier>
-		<!-- Title of the document -->
-		<dc:Title><h2>%s</h2></dc:Title>
-		<dc:Language>EN</dc:Language>
-	</dc-metadata>
-	<x-metadata>
-"""
-OPFTEMPLATEHEADNOUTF = """		<output encoding="utf-8" flatten-dynamic-dir="yes"/>"""
-OPFTEMPLATEHEAD2 = """
-		<DictionaryInLanguage>%s</DictionaryInLanguage>
-		<DictionaryOutLanguage>%s</DictionaryOutLanguage>
-	</x-metadata>
-</metadata>
-
-<!-- list of all the files needed to produce the .prc file -->
-<manifest>
-"""
-
-OPFTEMPLATELINE = """ <item id="dictionary%d" href="%s%d.html" media-type="text/x-oeb1-document"/>
-"""
-
-OPFTEMPLATEMIDDLE = """</manifest>
-
-
-<!-- list of the html files in the correct order  -->
-<spine>
-"""
-
-OPFTEMPLATELINEREF = """	<itemref idref="dictionary%d"/>
-"""
-
-OPFTEMPLATEEND = """</spine>
-
-<tours/>
-<guide> <reference type="search" title="Dictionary Search" onclick= "index_search()"/> </guide>
-</package>
-"""
-
 # Args:
 #  --verbose
 #  --module: module to load and attempt to extract getdef, getkey & mapping
@@ -228,7 +181,7 @@ def readkeys():
 # have a lookup dictionary
 @contextmanager
 def writekeyfile(name, i):
-    fname = "%s%d.html" % (name, i)
+    fname = "{}{}.html".format(name, i)
     if VERBOSE: print("Key file: {}".format(fname))
     with open(fname, 'w') as to:
         to.write("""<?xml version="1.0" encoding="utf-8"?>
@@ -279,7 +232,7 @@ def writekey(to, key, defn):
       </idx:entry>
 """
 )
-    
+
     if VERBOSE: print(key)
 
 # Write all the keys, where defns is a map of
@@ -301,21 +254,69 @@ def writekeys(defns, name):
 
 # After writing keys, the opf that references all the key files
 # is constructed.
-def writeopf(ndicts, name):
+# openopf wraps the contents of writeopf
+#
+@contextmanager
+def openopf(ndicts, name):
     fname = "%s.opf" % name
     if VERBOSE: print("Opf: {}".format(fname))
     with open(fname, 'w') as to:
-        to.write(OPFTEMPLATEHEAD1 % (name, name))
-        to.write(OPFTEMPLATEHEADNOUTF)
-        to.write(OPFTEMPLATEHEAD2 % (INLANG, OUTLANG))
+        to.write("""<?xml version="1.0"?><!DOCTYPE package SYSTEM "oeb1.ent">
 
-        for i in range(ndicts):
-            to.write(OPFTEMPLATELINE % (i, name, i))
+<!-- the command line instruction 'prcgen dictionary.opf' will produce the dictionary.prc file in the same folder-->
+<!-- the command line instruction 'mobigen dictionary.opf' will produce the dictionary.mobi file in the same folder-->
 
-        to.write(OPFTEMPLATEMIDDLE)
+<package unique-identifier="uid" xmlns:dc="Dublin Core">
+
+<metadata>
+	<dc-metadata>
+		<dc:Identifier id="uid">{name}</dc:Identifier>
+		<!-- Title of the document -->
+		<dc:Title><h2>{name}</h2></dc:Title>
+		<dc:Language>EN</dc:Language>
+	</dc-metadata>
+	<x-metadata>
+	        <output encoding="utf-8" flatten-dynamic-dir="yes"/>
+		<DictionaryInLanguage>{source}</DictionaryInLanguage>
+		<DictionaryOutLanguage>{target}</DictionaryOutLanguage>
+	</x-metadata>
+</metadata>
+
+<!-- list of all the files needed to produce the .prc file -->
+<manifest>
+""".format(name=name, source=INLANG, target=OUTLANG))
+
+        yield to
+
+        to.write("""
+<tours/>
+<guide> <reference type="search" title="Dictionary Search" onclick= "index_search()"/> </guide>
+</package>
+"""
+)
+
+# Write the opf that describes all the key files
+def writeopf(ndicts, name):
+    with openopf(ndicts, name) as to:
         for i in range(ndicts):
-            to.write(OPFTEMPLATELINEREF % i)
-        to.write(OPFTEMPLATEEND)
+            to.write(
+"""     <item id="dictionary{ndict}" href="{name}{ndict}.html" media-type="text/x-oeb1-document"/>
+""".format(ndict=i, name=name))
+
+        to.write("""
+</manifest>
+<!-- list of the html files in the correct order  -->
+<spine>
+"""
+)
+        for i in range(ndicts):
+            to.write("""
+	<itemref idref="dictionary{ndict}"/>
+""".format(ndict=i))
+
+        to.write("""
+</spine>
+""")
 
 ######################################################
 # main

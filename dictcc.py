@@ -21,13 +21,19 @@ g = re.compile(articles)
 sp = re.compile(r"\W+")
 ssp = re.compile(r"\s+")
 
+# goto exception for denoise
 class Reject(Exception): pass
 
+# apply reg -> ' ' on key
+# if reduces to zero, goto Reject
 def tryreg(key, reg):
     nkey = reg.sub(' ', key).strip()
     if len(nkey) == 0: raise Reject()
     return nkey
 
+# Try a series of reductions
+# tryreg goes out of sequence by calling goto
+# return non-null key
 def denoise(key):
     try: 
         key = tryreg(key, e)   # delete parenthesized
@@ -39,11 +45,11 @@ def denoise(key):
     try: key = tryreg(key, pr) # delete any preps left
     except Reject: pass
 
-    try: key = tryreg(key, ssp) # collapse spaces
-    except Reject: pass
-
     return key
 
+# Map key onto some sensible long word in the term,
+# trying to avoid punctiation, gender marking
+# and parenthesized information
 def getkey(key):
     key = denoise(key)
     # return the biggest word in the term

@@ -18,7 +18,6 @@ articles = r"(?:^|\s)(?:d(?:e[rnms]|as|ie)|k?ein(?:e[rnms]?)?)(?:\s|$)"
 g = re.compile(articles)
 
 # Not a word
-spw = re.compile(r"[^\w\(\)\{\}\[\]]+")
 sp = re.compile(r"\W+")
 ssp = re.compile(r"\s+")
 
@@ -31,7 +30,6 @@ def tryreg(key, reg):
 
 def denoise(key):
     try: 
-        key = tryreg(key, spw) # non letters/parens -> space
         key = tryreg(key, e)   # delete parenthesized
         key = tryreg(key, g)   # delete articles
         key = tryreg(key, p)   # delete prep + objects

@@ -30,8 +30,10 @@ ssp = re.compile(r"\s+")
 #
 strippers = [
     [
-        [e, ' '],   # delete parenthized
-        [sp, ' '], # non letters -> space
+        [e, ' '],   # delete parenthesized
+    ],
+    [
+        [sp, ' '],  # non letters -> space
         [g, ' '],   # delete articles
         [p, ' '],   # delete prep + objects
     ], [

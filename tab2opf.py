@@ -130,8 +130,6 @@ def parseargs():
     parser = argparse.ArgumentParser("tab2opf")
     parser.add_argument("-v", "--verbose", help="make verbose", 
                         action="store_true")
-    parser.add_argument("-", "--utf", help="input is utf8", 
-                        action="store_true")
     parser.add_argument("-m", "--module", 
                         help="Import module for mapping, getkey, getdef")
     parser.add_argument("-s", "--source", default="en", help="Source language")
@@ -157,7 +155,6 @@ def importmod():
     loadmember(mod, 'mapping', {})
 
 args = parseargs()
-UTFINDEX = args.utf
 VERBOSE  = args.verbose
 FILENAME = args.file
 MODULE   = args.module
@@ -302,14 +299,16 @@ def writekeys(defns, name):
                 writekey(to, key, defns[key])
     return j+1
 
+# After writing keys, the opf that references all the key files
+# is constructed.
 def writeopf(ndicts, name):
     fname = "%s.opf" % name
     if VERBOSE: print("Opf: {}".format(fname))
     with open(fname, 'w') as to:
         to.write(OPFTEMPLATEHEAD1 % (name, name))
-        if not UTFINDEX: to.write(OPFTEMPLATEHEADNOUTF)
-
+        to.write(OPFTEMPLATEHEADNOUTF)
         to.write(OPFTEMPLATEHEAD2 % (INLANG, OUTLANG))
+
         for i in range(ndicts):
             to.write(OPFTEMPLATELINE % (i, name, i))
 

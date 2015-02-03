@@ -6,8 +6,7 @@ word = r"[\w\.]+"
 objs = r"\b(?:selbst|sich|etwas|jede[rnms]|etw|jd[rnms]?)\b"
 
 p = re.compile(r"\b(?:{objs}|{preps}\s+{word})\b". \
-               format(preps=preps, word=word, objs=objs),
-               re.UNICODE)
+               format(preps=preps, word=word, objs=objs))
 pr = re.compile(preps)
 
 # remove {gender}, [type], (objects)
@@ -19,6 +18,7 @@ articles = r"\b(?:d(?:e[rnms]|as|ie)|k?ein(?:e[rnms]?)?)\b"
 g = re.compile(articles)
 
 sp = re.compile(r"[^\w-]+")
+ssp = re.compile(r"\s+")
 
 strippers = [
     [
@@ -28,6 +28,8 @@ strippers = [
         [p, ''],   # delete prep + objects
     ], [
         [pr, ''],  # delete any preps left
+    ], [
+        [ssp, ' '], # collapse spaces
     ]
 ]
 

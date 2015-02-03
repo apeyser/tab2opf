@@ -210,11 +210,16 @@ def readkey(r, defs):
     else:
         defs[key].append(ndef)
 
+# Skip empty lines and lines that only have a comment
+def inclline(s):
+    s = s.lstrip()
+    return len(s) != 0 and s[0] != '#'
+
 def readkeys():
     if VERBOSE: print("Reading {}".format(FILENAME))
     with open(FILENAME,'r', encoding='utf-8') as fr:
         defns = {}
-        for r in filter(lambda l: len(l.strip()) != 0, fr):
+        for r in filter(inclline, fr):
             readkey(r, defns)
         return defns
 

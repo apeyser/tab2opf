@@ -45,7 +45,11 @@ def getkey(key):
 d = re.compile(r"\s*\t\s*")
 
 def getdef(odef):
-    dfn, ops = d.split(odef, 1)
+    try: dfn, ops = d.split(odef, 1)
+    except ValueError:
+        print("Split error: '{}'".format(odef))
+        raise
+
     if ops.strip() != '':
         dfn = "({}) {}".format(ops.strip(), dfn)
     return dfn

@@ -16,10 +16,12 @@
 #   http://www.mobipocket.com/soft/prcgen/mobigen.zip
 #
 # Copyright (C) 2007 - Klokan Petr Přidal (www.klokan.cz)
+# Copyright (C) 2015 - Alexander Peyser (github.com/apeyser)
 #
 #
 # Version history:
 # 0.1 (19.7.2007) Initial version
+# 0.2 (2/2015) Rework removing encoding, runs on python3
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -39,20 +41,12 @@
 # VERSION
 VERSION = "0.2"
 
-# FILENAME is a first parameter on the commandline now
-
 import sys
 import os
 import argparse
 from itertools import islice, count, groupby
 from contextlib import contextmanager
-from operator import itemgetter
 import importlib
-
-import string
-
-# Feel free to add new user-defined mapping. Don't forget to update mapping dict
-# with your dict.
 
 # Stop with the encoding -- it's broken anyhow
 # in the kindles and undefined.
@@ -114,9 +108,12 @@ OPFTEMPLATEEND = """</spine>
 </package>
 """
 
-################################################################
-# MAIN
-################################################################
+# Args:
+#  --verbose
+#  --module: module to load and attempt to extract getdef, getkey & mapping
+#  --source: source language code (en by default)
+#  --target: target language code (en by default)
+#  file: the tab delimited file to read
 
 def parseargs():
     if len(sys.argv) < 1:
@@ -136,7 +133,7 @@ def parseargs():
     parser.add_argument("-", "--utf", help="input is utf8", 
                         action="store_true")
     parser.add_argument("-m", "--module", 
-                        help="Import mod for mapping, getkey, getdef")
+                        help="Import module for mapping, getkey, getdef")
     parser.add_argument("-s", "--source", default="en", help="Source language")
     parser.add_argument("-t", "--target", default="en", help="Target language")
     parser.add_argument("file", help="tab file to input")    
@@ -145,35 +142,37 @@ def parseargs():
 def loadmember(mod, attr, dfault):
     if hasattr(mod, attr):
         print("Loading {} from {}".format(attr, mod.__name__))
-        return getattr(mod, attr)
-    return dfault
+        globals()[attr] = getattr(mod, attr)
+    else: globals()[attr] = dfault
 
 def importmod():
     global MODULE
-    global getkey
-    global getdef
-    global mapping
-
     if MODULE is None: mod = None
     else:
         mod = importlib.import_module(MODULE)
         print("Loading methods from: {}".format(mod.__file__))
 
-    getkey = loadmember(mod, 'getkey', lambda key: key)
-    getdef = loadmember(mod, 'getdef', lambda dfn: dfn)
-    mapping = loadmember(mod, 'mapping', {})
+    loadmember(mod, 'getkey', lambda key: key)
+    loadmember(mod, 'getdef', lambda dfn: dfn)
+    loadmember(mod, 'mapping', {})
 
 args = parseargs()
 UTFINDEX = args.utf
-VERBOSE = args.verbose
+VERBOSE  = args.verbose
 FILENAME = args.file
-MODULE = args.module
-INLANG = args.source
-OUTLANG = args.target
+MODULE   = args.module
+INLANG   = args.source
+OUTLANG  = args.target
 importmod()
 
+# add a single [term, definition]
+# to defs[key]
+# r is a tab split line
 def readkey(r, defs):
-    term, defn =  r.split('\t',1)
+    try: term, defn =  r.split('\t',1)
+    except ValueError:
+        print("Bad line: '{}'".format(r))
+        raise
 
     term = term.strip()
     defn = getdef(defn)
@@ -201,20 +200,22 @@ def readkey(r, defs):
         raise Exception("Missing key {}".format(term))
     if defn == '':
         raise Exception("Missing definition {}".format(term))
-    
+
     if VERBOSE: print(key, ":", term)
 
     ndef = [term, defn, key == nkey]
-    if key not in defs:
-        defs[key] = [ndef]
-    else:
-        defs[key].append(ndef)
+    if key in defs: defs[key].append(ndef)
+    else:           defs[key] = [ndef]
 
 # Skip empty lines and lines that only have a comment
 def inclline(s):
     s = s.lstrip()
     return len(s) != 0 and s[0] != '#'
 
+# Iterate over FILENAME, reading lines of
+# term {tab} definition
+# skips empty lines and commented out lines
+#
 def readkeys():
     if VERBOSE: print("Reading {}".format(FILENAME))
     with open(FILENAME,'r', encoding='utf-8') as fr:
@@ -223,6 +224,11 @@ def readkeys():
             readkey(r, defns)
         return defns
 
+# Write to key file {name}{n}.html
+# put the body inside the context manager
+# The onclick here gives a kindlegen warning
+# but appears to be necessary to actually
+# have a lookup dictionary
 @contextmanager
 def writekeyfile(name, i):
     fname = "%s%d.html" % (name, i)
@@ -248,13 +254,17 @@ def writekeyfile(name, i):
 </html>
         """)
 
+# Order definitions by keys, then by whether the key
+# matches the original term, then by length of term
+# then alphabetically
 def keyf(defn):
     term = defn[0]
     if defn[2]: l = 0
     else: l = len(term)
     return l, term
 
-# key -> terms, defns
+# Write into to the key, definition pairs
+# key -> [[term, defn, key==term]]
 def writekey(to, key, defn):
     terms = iter(sorted(defn, key=keyf))
     for term, g in groupby(terms, key=lambda d: d[0]):
@@ -275,6 +285,13 @@ def writekey(to, key, defn):
     
     if VERBOSE: print(key)
 
+# Write all the keys, where defns is a map of
+# key --> [[term, defn, key==term]...]
+# and name is the basename
+# The files are split so that there are no more than
+# 10,000 keys written to each file (why?? I dunno)
+#
+# Returns the number of files.
 def writekeys(defns, name):
     keyit = iter(sorted(defns))
     for j in count():
@@ -300,6 +317,10 @@ def writeopf(ndicts, name):
         for i in range(ndicts):
             to.write(OPFTEMPLATELINEREF % i)
         to.write(OPFTEMPLATEEND)
+
+######################################################
+# main
+######################################################
 
 print("Reading keys")
 defns = readkeys()

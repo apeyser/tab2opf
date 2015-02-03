@@ -17,9 +17,17 @@ e = re.compile(extras)
 articles = r"(?:^|\s)(?:d(?:e[rnms]|as|ie)|k?ein(?:e[rnms]?)?)(?:\s|$)"
 g = re.compile(articles)
 
+# Not a word
 sp = re.compile(r"\W+")
 ssp = re.compile(r"\s+")
 
+# We'll walk the strippers
+# For each element, we'll go over all the sub-elements
+# The sub-elements are regex, replacement pairs
+# If one of these reduces the key to nothing,
+# then reject it, and skip all following pairs
+# until the next group
+#
 strippers = [
     [
         [e, ' '],   # delete parenthized
@@ -41,11 +49,14 @@ def getkey(key):
             if len(nkey) == 0: break
             key = nkey
 
+    # return the biggest word in the term
     return max(key.split(),
                key=lambda k: len(k))
 
+# the definitions are
+# definition {tab} part-of-speech pairs
+# Return (part-of-speech) definition
 d = re.compile(r"\s*\t\s*")
-
 def getdef(odef):
     try: dfn, ops = d.split(odef, 1)
     except ValueError:

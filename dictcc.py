@@ -31,17 +31,15 @@ def tryreg(key, reg):
 def denoise(key):
     try: 
         key = tryreg(key, e)   # delete parenthesized
+        key = tryreg(key, sp)  # non letters -> space
         key = tryreg(key, g)   # delete articles
         key = tryreg(key, p)   # delete prep + objects
     except Reject: pass
 
-    try:
-        key = tryreg(key, sp) # non letters -> space
-        key = tryreg(key, pr) # delete any preps left
+    try: key = tryreg(key, pr) # delete any preps left
     except Reject: pass
 
-    try:
-        key = tryreg(key, ssp) # collapse spaces
+    try: key = tryreg(key, ssp) # collapse spaces
     except Reject: pass
 
     return key
